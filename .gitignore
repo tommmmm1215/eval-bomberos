@@ -1,0 +1,50 @@
+# =====================================================================
+#  DATOS PERSONALES — nunca al repositorio
+#
+#  El repositorio es público. Acá se trabaja con el padrón real de un
+#  cuerpo de bomberos: nombres, DNI y retratos de 17 personas. Nada de
+#  eso entra a git.
+#
+#  Los datos reales viven en dos lugares y ninguno es este: la base de
+#  Supabase (protegida por RLS) y la máquina del jefe de cuartel.
+#
+#  Borrar algo del historial de git después de haberlo subido es
+#  tedioso y nunca del todo confiable: los forks y las cachés quedan.
+#  Por eso la lista va acá desde el primer commit.
+# =====================================================================
+
+Imagenes Bomberos/
+*.jpg
+*.jpeg
+*.png
+!app/build/icon.png
+
+# Padrón real con DNI. La versión versionada es seed_ejemplo.sql.
+supabase/seed_espartillar.sql
+
+# La herramienta de asignación lleva embebidos los nombres y los UUID
+# reales de la dotación.
+asignar-fotos.html
+fotos-listas/
+
+# =====================================================================
+#  Build y dependencias
+# =====================================================================
+
+node_modules/
+app/node_modules/
+app/dist/
+package-lock.json
+app/package-lock.json
+
+# =====================================================================
+#  Entorno
+# =====================================================================
+
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+.fuse_hidden*

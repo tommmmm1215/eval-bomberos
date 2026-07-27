@@ -1,0 +1,98 @@
+{
+  "name": "evaluacion-bomberos-espartillar",
+  "productName": "Evaluacion Bomberos Espartillar",
+  "version": "1.0.3",
+  "description": "Sistema de evaluación de rendimiento — Bomberos Voluntarios de Espartillar",
+  "main": "main.js",
+  "author": "Cuerpo de Bomberos Voluntarios de Espartillar",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tommmmm1215/eval-bomberos.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/smoke.mjs",
+    "build:win": "electron-builder --win --x64 --publish never",
+    "publicar": "electron-builder --win --x64 --publish always"
+  },
+  "//devDependencies": [
+    "jsdom y esbuild son sólo para `npm test`: montan el renderer en un DOM",
+    "simulado. No van adentro del .exe —electron-builder excluye las",
+    "devDependencies—, pero antes ni siquiera estaban declaradas y el test",
+    "fallaba en cualquier máquina donde no estuvieran instaladas por casualidad."
+  ],
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.1",
+    "jsdom": "^30.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "ar.org.bomberosespartillar.evaluacion",
+    "productName": "Evaluacion Bomberos Espartillar",
+    "directories": { "output": "dist" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+
+    "//publish": [
+      "De acá lee electron-updater a qué repositorio consultar. Tiene que ser",
+      "un repo público, o hará falta un token. El archivo latest.yml que",
+      "electron-builder sube junto al instalador es lo que la app descarga",
+      "al arrancar para saber si hay versión nueva."
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "tommmmm1215",
+        "repo": "eval-bomberos",
+        "releaseType": "release"
+      }
+    ],
+
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "EvaluacionBomberos-Setup-${version}.${ext}"
+    },
+
+    "//nsis": [
+      "Instalador completo y autocontenido, de unos 90 MB: lleva la app",
+      "adentro y no necesita internet para instalar. Es el archivo que se le",
+      "manda al cuartel una sola vez. De ahí en adelante la app se actualiza",
+      "sola contra las releases de GitHub.",
+      "",
+      "createDesktopShortcut en 'always' y no en true: con true,",
+      "electron-builder no recrea el acceso directo al actualizar —asume que",
+      "si no está es porque el usuario lo borró—, pero como la actualización",
+      "desinstala primero, se lo lleva puesto y nunca lo repone."
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Evaluacion Bomberos",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+
+    "//portable": [
+      "El portable se conserva para probar sin instalar y para el caso de que",
+      "la PC del cuartel no permita instalaciones. No se auto-actualiza."
+    ],
+    "portable": {
+      "artifactName": "EvaluacionBomberos-Portable-${version}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+-- =====================================================================
+-- OBSOLETO — usar seed_espartillar.sql
+--
+-- Este archivo tenía datos de ejemplo ("Cuartel Central, Bahía Blanca")
+-- que no corresponden al despliegue real. Se deja vacío a propósito para
+-- que nadie lo corra por costumbre y cree un cuartel fantasma.
+-- =====================================================================
