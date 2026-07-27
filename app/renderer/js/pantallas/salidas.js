@@ -3,8 +3,15 @@
 // Sólo se tildan los presentes. El resto de la dotación queda 'ausente'
 // automáticamente, salvo quien tenga una novedad vigente ese día, que pasa
 // a 'no_convocable' y por lo tanto no le cuenta en contra.
+//
+// Aparece TODA la dotación activa, no sólo los evaluables: el jefe y los
+// administrativos salen igual, y la planilla contesta una pregunta
+// operativa —quién fue— que no depende de a quién se le pone nota. A ellos
+// nunca se les cuenta una ausencia; el contador de presentismo se calcula
+// aparte, sólo sobre los evaluables.
 
-import { dotacion, emergencias, registrarEmergencia, anularEmergencia } from "../api.js";
+import { dotacion, emergencias, registrarEmergencia, anularEmergencia,
+         borrarEmergencia } from "../api.js";
 import { el, montar, limpiar, avisar, errorDe, cargando, fechaHora, dialogo, confirmar, num } from "../ui.js";
 import { TIPOS_EMERGENCIA } from "../config.js";
 import { estado } from "../main.js";
@@ -18,12 +25,13 @@ export async function pantallaSalidas(hoja) {
   let gente, lista;
   try {
     [gente, lista] = await Promise.all([
-      dotacion({ soloEvaluables: true }),
+      dotacion(),                       // toda la dotación activa
       emergencias(periodo.id)
     ]);
   } catch (e) { errorDe(e); limpiar(hoja); return; }
 
   const porId = Object.fromEntries(gente.map(b => [b.id, b]));
+  const esEvaluable = new Set(gente.filter(b => b.evaluable).map(b => b.id));
   const computables = lista.filter(e => e.computable);
 
   // ------------------------------------------------------------- alta
@@ -59,7 +67,12 @@ export async function pantallaSalidas(hoja) {
             lbl.style.borderColor = chk.checked ? "#067647" : "var(--borde)";
             contador.textContent = `${seleccion.size} presentes`;
           }
-        }, chk, b.nombre);
+        }, chk, b.nombre,
+           // Se los marca en vez de esconderlos: el jefe tiene que poder
+           // tildarlos, pero también saber de un vistazo que tildarlos no
+           // le mueve el presentismo a nadie.
+           b.evaluable ? null : el("span", {
+             class: "chip", style: "margin-left:auto", text: "no se evalúa" }));
         return lbl;
       })
     );
@@ -111,8 +124,17 @@ export async function pantallaSalidas(hoja) {
   const filas = lista.map(e => {
     const asis = e.emergencia_asistencia ?? [];
     const presentes = asis.filter(a => a.estado === "presente");
-    const convocables = asis.filter(a => a.estado !== "no_convocable");
     const etiqueta = TIPOS_EMERGENCIA.find(t => t.k === e.tipo)?.label ?? e.tipo;
+
+    // El contador tiene que seguir leyéndose como presentismo, y el
+    // presentismo se mide sólo sobre los evaluables. Si el jefe sale, suma
+    // al numerador operativo pero no al denominador del cálculo, así que
+    // el ratio se arma aparte: de lo contrario un "2 / 3" haría pensar que
+    // hubo un ausente que no existe.
+    const presentesEval  = presentes.filter(a => esEvaluable.has(a.bombero_id));
+    const convocablesEval = asis.filter(a =>
+      a.estado !== "no_convocable" && esEvaluable.has(a.bombero_id));
+    const extras = presentes.length - presentesEval.length;
 
     return el("tr", { style: e.computable ? "" : "opacity:.45" },
       el("td", { class: "num", style: "white-space:nowrap", text: fechaHora(e.ocurrida_en) }),
@@ -120,10 +142,16 @@ export async function pantallaSalidas(hoja) {
         e.codigo ? el("span", { class: "legajo", text: " · " + e.codigo }) : null,
         !e.computable ? el("span", { class: "chip rojo", style: "margin-left:6px" }, "no computa") : null),
       el("td", { class: "cen num", text: num(e.peso, 2) }),
-      el("td", { class: "cen num", text: `${presentes.length} / ${convocables.length}` }),
+      el("td", { class: "cen num",
+                 title: extras
+                   ? `${presentesEval.length} de ${convocablesEval.length} evaluables. ` +
+                     `Salieron además ${extras} que no se evalúan.`
+                   : "Presentes sobre convocables, entre los evaluables" },
+        `${presentesEval.length} / ${convocablesEval.length}`,
+        extras ? el("span", { class: "chip", style: "margin-left:6px", text: `+${extras}` }) : null),
       el("td", {}, el("div", { style: "font-size:13px;color:var(--suave)" },
         presentes.map(p => porId[p.bombero_id]?.nombre?.split(",")[0]).filter(Boolean).join(", ") || "—")),
-      el("td", { class: "der" },
+      el("td", { class: "der", style: "white-space:nowrap" },
         cerrado ? null : el("button", {
           class: "btn sec chico",
           text: e.computable ? "Anular" : "Restaurar",
@@ -134,6 +162,37 @@ export async function pantallaSalidas(hoja) {
             try {
               await anularEmergencia(e.id, !e.computable);
               avisar(e.computable ? "Salida anulada" : "Salida restaurada", "ok");
+              pantallaSalidas(hoja);
+            } catch (err) { errorDe(err); }
+          }
+        }),
+
+        // Anular y borrar no son lo mismo, y por eso conviven.
+        //
+        // Anular deja la salida a la vista, tachada, diciendo "esto pasó pero
+        // no cuenta": es la falsa alarma. Borrar es para la salida que nunca
+        // existió —la prueba, el duplicado, el dedazo—, donde dejar rastro no
+        // documenta nada, sólo ensucia la planilla del mes.
+        cerrado ? null : el("button", {
+          class: "btn sec chico peligro",
+          style: "margin-left:6px",
+          text: "Borrar",
+          title: "Elimina la salida y su asistencia. No se puede deshacer.",
+          onclick: async () => {
+            const quienes = presentes.length
+              ? `Figuran ${presentes.length} presente(s).`
+              : "No tiene presentes cargados.";
+            const ok = await confirmar(
+              "Borrar la salida",
+              `${etiqueta} del ${fechaHora(e.ocurrida_en)}. ${quienes} ` +
+              `Se borra junto con la asistencia de todos y no se puede deshacer. ` +
+              `Si la salida existió pero no querés que compute, usá Anular.`,
+              { confirmar: "Borrar" }
+            );
+            if (!ok) return;
+            try {
+              await borrarEmergencia(e.id);
+              avisar("Salida borrada", "ok");
               pantallaSalidas(hoja);
             } catch (err) { errorDe(err); }
           }

@@ -33,7 +33,10 @@ function crearVentana() {
     minHeight: 640,
     backgroundColor: "#f5f3ef",
     title: "Evaluación de Personal — Bomberos de Espartillar",
-    icon: path.join(__dirname, "build", "icon.png"),
+    // Apuntaba a build/icon.png, que electron-builder excluye del paquete por
+    // ser la carpeta de recursos de compilación: la ruta no existía dentro del
+    // .exe. La copia que se embarca vive en renderer/, que sí va entera.
+    icon: path.join(RENDERER, "icon.png"),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

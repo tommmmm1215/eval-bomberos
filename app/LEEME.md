@@ -59,7 +59,7 @@ comprar el certificado de firma.
 
 ## Las cinco pantallas
 
-**Guardias** — La que más se usa. Una fila por bombero, un número por semana.
+**Guardias** — La que más se usa. Una fila por bombero, un número por mes.
 Enter baja a la siguiente fila, así se completa sin tocar el mouse. *Copiar
 semana anterior* trae los valores de la semana previa, que es lo habitual.
 Recargar la misma semana corrige el dato, no lo duplica.

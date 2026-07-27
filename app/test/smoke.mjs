@@ -51,12 +51,14 @@ const DATOS = {
     tope_por_piso: 60, piso_guardia: 0.5, piso_salidas: 0.4 }],
   periodo: [{ id: PERIODO, anio: 2026, mes: 8, estado: "abierto", cerrado_en: null, cuartel_id: CUARTEL }],
   registro_guardia: [
-    { periodo_id: PERIODO, bombero_id: "b2", semana: 1, horas: 12 },
-    { periodo_id: PERIODO, bombero_id: "b3", semana: 1, horas: 6 }
+    { periodo_id: PERIODO, bombero_id: "b2", horas: 12 },
+    { periodo_id: PERIODO, bombero_id: "b3", horas: 6 }
   ],
   emergencia: [{ id: 1, periodo_id: PERIODO, ocurrida_en: "2026-08-03T04:00:00Z",
     tipo: "incendio_estructural", codigo: "INC-01", peso: 2.5, computable: true,
     emergencia_asistencia: [
+      // b1 es el jefe: evaluable = false. Sale igual, y tiene que verse.
+      { bombero_id: "b1", estado: "presente" },
       { bombero_id: "b2", estado: "presente" }, { bombero_id: "b3", estado: "ausente" }] }],
   evaluacion_mensual: EVALUABLES.map(b => ({
     periodo_id: PERIODO, bombero_id: b.id, orden_interno: 7, capacitacion: 7, protocolar: 7,
@@ -241,12 +243,6 @@ async function irA(nombre) {
 
 console.log("\nGuardias");
 if (await irA("Guardias")) {
-  // La app abre en la semana en curso; el fixture cargó horas en la 1.
-  const selSemana = doc.querySelector("main select");
-  selSemana.value = "1";
-  selSemana.dispatchEvent(new w.Event("change", { bubbles: true }));
-  for (let i = 0; i < 40; i++) await new Promise(r => setTimeout(r, 5));
-
   const inputs = doc.querySelectorAll("input.horas");
   // Se mira sólo la tabla: el nombre del jefe aparece igual en la barra
   // superior porque es quien inició sesión.
@@ -256,10 +252,17 @@ if (await irA("Guardias")) {
     `una celda por evaluable (${inputs.length} de ${EVALUABLES.length})`);
   afirmar(!tabla.includes("DIAZ"), "excluye a los dados de baja");
   afirmar(!tabla.includes("ROMERO"), "excluye al jefe, que no se evalúa a sí mismo");
-  afirmar(inputs[0]?.value === "12", "trae las horas ya cargadas de la semana");
+  afirmar(inputs[0]?.value === "12", "trae las horas ya cargadas del mes");
+
+  // La carga es mensual: no debe quedar ningún rastro de la semana.
+  afirmar(!tabla.toLowerCase().includes("semana"), "la tabla no habla de semanas");
+  afirmar(![...doc.querySelectorAll("main button")].some(b => /semana/i.test(b.textContent)),
+    "no quedó ningún botón de semana");
+  afirmar(inputs[0]?.getAttribute("max") === "744",
+    "el tope es el del mes (744 h), no el de una semana");
 
   // editar una celda tiene que habilitar el guardado
-  const btnGuardar = [...doc.querySelectorAll("button")].find(b => b.textContent.startsWith("Guardar semana"));
+  const btnGuardar = [...doc.querySelectorAll("button")].find(b => b.textContent.startsWith("Guardar"));
   afirmar(btnGuardar?.disabled === true, "el botón arranca deshabilitado");
   inputs[0].value = "18";
   inputs[0].dispatchEvent(new w.Event("input", { bubbles: true }));
@@ -269,8 +272,9 @@ if (await irA("Guardias")) {
 
   btnGuardar.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
   for (let i = 0; i < 40; i++) await new Promise(r => setTimeout(r, 5));
-  const env = llamadas.find(c => c[1] === "upsert_guardias_semana");
-  afirmar(env, "guardar llama a upsert_guardias_semana");
+  const env = llamadas.find(c => c[1] === "upsert_guardias_mes");
+  afirmar(env, "guardar llama a upsert_guardias_mes");
+  afirmar(env && env[2].p_semana === undefined, "ya no manda p_semana");
   afirmar(env && env[2].p_registros.length === 1 && env[2].p_registros[0].horas === 18,
     "manda sólo lo editado, con el valor nuevo");
   sinBasura(doc, "Guardias");
@@ -278,9 +282,37 @@ if (await irA("Guardias")) {
 
 console.log("\nSalidas");
 if (await irA("Salidas")) {
-  afirmar(texto(doc).includes("Incendio estructural"), "lista la salida cargada");
-  afirmar(texto(doc).includes("INC-01"), "muestra el código de parte");
-  afirmar(texto(doc).includes("1 / 2"), "muestra presentes sobre convocables");
+  const t = texto(doc);
+  afirmar(t.includes("Incendio estructural"), "lista la salida cargada");
+  afirmar(t.includes("INC-01"), "muestra el código de parte");
+
+  // El jefe (evaluable = false) salió. Tiene que figurar entre los que
+  // fueron, que es para lo que sirve la planilla…
+  afirmar(t.includes("ROMERO"), "muestra al no evaluable que salió");
+
+  // …pero sin ensuciar el presentismo: el ratio se mide sólo entre
+  // evaluables, así que sigue siendo 1 de 2 y no 2 de 3.
+  afirmar(t.includes("1 / 2"), "el ratio cuenta sólo evaluables");
+  afirmar(!t.includes("2 / 3"), "el no evaluable no infla el denominador");
+  afirmar(t.includes("+1"), "avisa que salió alguien fuera de evaluación");
+
+  // Anular y borrar tienen que convivir: son cosas distintas.
+  const botones = [...doc.querySelectorAll("main tbody button")].map(b => b.textContent);
+  afirmar(botones.includes("Anular"), "ofrece anular (la salida pasó pero no computa)");
+  afirmar(botones.includes("Borrar"), "ofrece borrar (la salida nunca existió)");
+
+  // Borrar no puede ser un clic suelto: pide confirmación antes de tocar nada.
+  const antes = llamadas.length;
+  [...doc.querySelectorAll("main tbody button")]
+    .find(b => b.textContent === "Borrar")
+    .dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  for (let i = 0; i < 30; i++) await new Promise(r => setTimeout(r, 5));
+  afirmar(doc.querySelector("dialog[open]"), "borrar abre un diálogo de confirmación");
+  afirmar(llamadas.length === antes, "no borra nada hasta que se confirma");
+  doc.querySelector("dialog[open] footer button")
+     .dispatchEvent(new w.MouseEvent("click", { bubbles: true }));  // Cancelar
+  for (let i = 0; i < 30; i++) await new Promise(r => setTimeout(r, 5));
+
   sinBasura(doc, "Salidas");
 }
 

@@ -165,7 +165,5 @@ export function cargando(texto = "Cargando…") {
   return el("div", { class: "cargando", text: texto });
 }
 
-// La semana del mes según el día (1..5). Coincide con `semana` en la base.
-export function semanaDelMes(fechaObj = new Date()) {
-  return Math.min(5, Math.ceil(fechaObj.getDate() / 7));
-}
+// (Acá vivía semanaDelMes(). Se fue con la carga semanal de guardias: las
+// horas se cargan por mes y ya no hay nada que ubicar en una semana.)

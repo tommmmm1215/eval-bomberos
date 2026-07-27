@@ -180,17 +180,21 @@ export async function reabrirPeriodo(periodoId, motivo) {
 
 // ---------------------------------------------------------------- guardias
 
-export async function guardiasDeSemana(periodoId, semana) {
+// Horas del mes, una fila por bombero. Antes esto se cargaba por semana,
+// pero la semana nunca entró en el cálculo —la vista suma el período entero
+// y la meta se prorratea por días, no por semanas—, así que sólo obligaba a
+// elegir una antes de poder tipear.
+export async function guardiasDelMes(periodoId) {
   const { data, error } = await sb.from("registro_guardia")
     .select("bombero_id, horas")
-    .eq("periodo_id", periodoId).eq("semana", semana);
+    .eq("periodo_id", periodoId);
   fallar(error, "Cargar horas");
   return Object.fromEntries((data ?? []).map(r => [r.bombero_id, Number(r.horas)]));
 }
 
 export async function totalesGuardia(periodoId) {
   const { data, error } = await sb.from("registro_guardia")
-    .select("bombero_id, semana, horas")
+    .select("bombero_id, horas")
     .eq("periodo_id", periodoId);
   fallar(error, "Cargar totales");
   const acc = {};
@@ -198,10 +202,11 @@ export async function totalesGuardia(periodoId) {
   return acc;
 }
 
-// Idempotente: reenviar la misma semana corrige, no duplica.
-export async function guardarSemana(periodoId, semana, registros) {
-  const { data, error } = await sb.rpc("upsert_guardias_semana", {
-    p_periodo: periodoId, p_semana: semana, p_registros: registros
+// Idempotente: reenviar el mes corrige el valor, no lo acumula. Es lo que
+// permite volver sobre una fila mal tipeada sin borrar nada primero.
+export async function guardarGuardias(periodoId, registros) {
+  const { data, error } = await sb.rpc("upsert_guardias_mes", {
+    p_periodo: periodoId, p_registros: registros
   });
   fallar(error, "Guardar horas");
   return data;
@@ -235,6 +240,18 @@ export async function registrarEmergencia(periodoId, { ocurridaEn, tipo, peso, c
 export async function anularEmergencia(id, computable) {
   const { error } = await sb.from("emergencia").update({ computable }).eq("id", id);
   fallar(error, "Actualizar salida");
+}
+
+// Borra la salida de verdad. Es distinto de anular: anular deja constancia de
+// que la salida ocurrió pero no computa —una falsa alarma, por ejemplo—;
+// borrar es para la que nunca existió, la cargada por error.
+//
+// La asistencia se va sola: emergencia_asistencia tiene ON DELETE CASCADE.
+// Y el trigger t_guard_emergencia lo rechaza si el período está cerrado, así
+// que un mes ya cerrado no se puede tocar ni por acá.
+export async function borrarEmergencia(id) {
+  const { error } = await sb.from("emergencia").delete().eq("id", id);
+  fallar(error, "Borrar salida");
 }
 
 // ---------------------------------------------------------------- evaluación

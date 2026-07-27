@@ -1,30 +1,30 @@
-// Carga semanal de horas de guardia.
+// Carga mensual de horas de guardia.
 //
 // Es la pantalla que más se usa y donde está el ahorro de tiempo, así que
 // está pensada para completarse con el teclado: se tipea un número, Enter
 // baja a la siguiente fila, y al final un solo guardado para todo el cuartel.
+//
+// Un número por bombero y por mes. Antes se cargaba semana por semana, pero
+// la semana nunca entró en el cálculo: la vista suma el período entero y la
+// meta se prorratea por días disponibles. Lo único que hacía era obligar a
+// elegir una semana antes de tipear y repetir la operación cinco veces por
+// mes para un dato que el jefe ya tiene anotado como total.
 
-import { sesion, dotacion, guardiasDeSemana, totalesGuardia, guardarSemana } from "../api.js";
-import { el, montar, limpiar, avisar, errorDe, num, cargando, semanaDelMes, barra } from "../ui.js";
+import { sesion, dotacion, guardiasDelMes, guardarGuardias } from "../api.js";
+import { el, montar, limpiar, avisar, errorDe, num, cargando, barra } from "../ui.js";
 import { estado } from "../main.js";
 import { marcarCambiosSinGuardar } from "../actualizador.js";
-
-let semanaActual = null;
 
 export async function pantallaGuardias(hoja) {
   const periodo = estado.periodo;
   const cerrado = periodo.estado === "cerrado";
-  if (semanaActual === null) semanaActual = semanaDelMes();
 
   montar(limpiar(hoja), cargando());
 
-  let gente, horasSemana, totales, meta;
+  let gente, horas, meta;
   try {
     gente = await dotacion({ soloEvaluables: true });
-    [horasSemana, totales] = await Promise.all([
-      guardiasDeSemana(periodo.id, semanaActual),
-      totalesGuardia(periodo.id)
-    ]);
+    horas = await guardiasDelMes(periodo.id);
     // Meta base del mes. La meta real de cada bombero se prorratea por sus
     // días disponibles; acá sólo se usa para dibujar la barra de referencia.
     meta = Number(sesion.config?.meta_horas_mes ?? 0) || null;
@@ -35,28 +35,13 @@ export async function pantallaGuardias(hoja) {
 
   // ------------------------------------------------------------ cabecera
 
-  const selSemana = el("select", { style: "width:auto", onchange: ev => {
-    semanaActual = Number(ev.target.value);
-    pantallaGuardias(hoja);
-  }});
-  for (let s = 1; s <= 5; s++)
-    selSemana.append(el("option", { value: s, selected: s === semanaActual, text: `Semana ${s}` }));
-
   const btnGuardar = el("button", { class: "btn", disabled: true, onclick: guardar },
-    "Guardar semana");
-
-  const btnCopiar = el("button", {
-    class: "btn sec", disabled: cerrado || semanaActual === 1,
-    title: "Trae las horas de la semana anterior a esta",
-    onclick: copiarAnterior
-  }, "Copiar semana anterior");
+    "Guardar");
 
   function marcarPendiente() {
     marcarCambiosSinGuardar(editados.size > 0);
     btnGuardar.disabled = cerrado || editados.size === 0;
-    btnGuardar.textContent = editados.size
-      ? `Guardar semana (${editados.size})`
-      : "Guardar semana";
+    btnGuardar.textContent = editados.size ? `Guardar (${editados.size})` : "Guardar";
   }
 
   // -------------------------------------------------------------- acciones
@@ -66,8 +51,8 @@ export async function pantallaGuardias(hoja) {
     btnGuardar.disabled = true; btnGuardar.textContent = "Guardando…";
     try {
       const registros = [...editados.entries()].map(([bombero_id, horas]) => ({ bombero_id, horas }));
-      await guardarSemana(periodo.id, semanaActual, registros);
-      avisar(`Semana ${semanaActual} guardada — ${registros.length} registro(s)`, "ok");
+      await guardarGuardias(periodo.id, registros);
+      avisar(`Guardado — ${registros.length} registro(s)`, "ok");
       await pantallaGuardias(hoja);
     } catch (e) {
       errorDe(e);
@@ -75,45 +60,35 @@ export async function pantallaGuardias(hoja) {
     }
   }
 
-  async function copiarAnterior() {
-    try {
-      const previa = await guardiasDeSemana(periodo.id, semanaActual - 1);
-      if (!Object.keys(previa).length) {
-        avisar(`La semana ${semanaActual - 1} está vacía`, "error");
-        return;
-      }
-      let n = 0;
-      for (const inp of inputs) {
-        const v = previa[inp.dataset.bombero];
-        if (v === undefined) continue;
-        if (Number(inp.value || 0) === v) continue;
-        inp.value = v;
-        inp.classList.add("editado");
-        editados.set(inp.dataset.bombero, v);
-        n++;
-      }
-      marcarPendiente();
-      avisar(n ? `${n} fila(s) copiadas — falta guardar` : "Ya estaba igual que la semana anterior");
-    } catch (e) { errorDe(e); }
-  }
-
   // ---------------------------------------------------------------- tabla
 
   const cuerpo = el("tbody");
 
   gente.forEach((b, i) => {
-    const original = horasSemana[b.id] ?? 0;
-    const totalMes = totales[b.id] ?? 0;
+    const original = horas[b.id] ?? 0;
+
+    // El total de la fila sigue a lo que se tipea, sin esperar al guardado:
+    // la barra es la única señal de cuánto falta para la meta, y si no se
+    // moviera hasta guardar, mentiría justo mientras se está cargando.
+    const celdaBarra = el("td", { style: "width:150px" });
+    function pintarBarra(v) {
+      limpiar(celdaBarra);
+      if (meta) montar(celdaBarra, barra(100 * v / meta, v >= meta ? "#067647" : "#1849a9"));
+    }
 
     const inp = el("input", {
-      type: "number", class: "horas num", min: "0", max: "168", step: "0.25",
+      // max en 744 (31 × 24) y no en 168: 168 era el tope de una semana y
+      // con carga mensual rechazaría a quien hace muchas guardias.
+      type: "number", class: "horas num", min: "0", max: "744", step: "0.25",
       value: original || "", disabled: cerrado,
+      inputmode: "decimal",
       dataset: { bombero: b.id, i },
       onfocus: ev => ev.target.select(),
       oninput: ev => {
         const v = ev.target.value === "" ? 0 : Number(ev.target.value);
         if (v === original) { editados.delete(b.id); ev.target.classList.remove("editado"); }
         else { editados.set(b.id, v); ev.target.classList.add("editado"); }
+        pintarBarra(v);
         marcarPendiente();
       },
       onkeydown: ev => {
@@ -128,28 +103,27 @@ export async function pantallaGuardias(hoja) {
       }
     });
     inputs.push(inp);
+    pintarBarra(original);
 
     cuerpo.append(el("tr", {},
       el("td", { class: "legajo", text: b.legajo }),
-      el("td", {}, b.nombre),
+      el("td", { "data-col": "Bombero" }, b.nombre),
       el("td", { class: "der" }, inp),
-      el("td", { class: "der num", text: num(totalMes, 2) }),
-      el("td", { style: "width:130px" },
-        meta ? barra(100 * totalMes / meta, totalMes >= meta ? "#067647" : "#1849a9") : "")
+      celdaBarra
     ));
   });
 
   // ---------------------------------------------------------------- armado
 
-  montar(limpiar(hoja), 
+  montar(limpiar(hoja),
     el("div", { class: "cabecera" },
       el("div", {},
         el("h1", { text: "Horas de guardia" }),
         el("p", { class: "bajada", text:
-          "Un número por bombero. Enter baja a la siguiente fila. " +
-          "Si te equivocás, volvés a cargar la semana y se corrige: no se duplica." })
+          "Las horas del mes, un número por bombero. Enter baja a la siguiente " +
+          "fila. Si te equivocás, lo volvés a cargar y se corrige: no se suma." })
       ),
-      el("div", { class: "acciones" }, selSemana, btnCopiar, btnGuardar)
+      el("div", { class: "acciones" }, btnGuardar)
     ),
 
     cerrado ? el("div", { class: "cerrado-aviso" },
@@ -161,8 +135,7 @@ export async function pantallaGuardias(hoja) {
           el("thead", {}, el("tr", {},
             el("th", { style: "width:70px" }, "Legajo"),
             el("th", {}, "Bombero"),
-            el("th", { class: "der", style: "width:110px" }, `Semana ${semanaActual}`),
-            el("th", { class: "der", style: "width:110px" }, "Total del mes"),
+            el("th", { class: "der", style: "width:120px" }, "Horas del mes"),
             el("th", { style: "width:150px" }, meta ? `Meta ${num(meta, 1)} h` : "")
           )),
           cuerpo

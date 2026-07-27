@@ -17,7 +17,14 @@ Imagenes Bomberos/
 *.jpg
 *.jpeg
 *.png
+
+# Las dos únicas imágenes del proyecto que no son una persona: el ícono de
+# la app. La regla general es bloquear todo y habilitar de a una, y no al
+# revés, porque un retrato nuevo que caiga en cualquier carpeta queda
+# bloqueado solo. Si acá se listara lo prohibido, cada carpeta nueva sería
+# una filtración esperando a pasar.
 !app/build/icon.png
+!app/renderer/icon.png
 
 # Padrón real con DNI. La versión versionada es seed_ejemplo.sql.
 supabase/seed_espartillar.sql

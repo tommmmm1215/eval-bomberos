@@ -112,6 +112,20 @@ h2 { font-size: 15px; margin-bottom: 10px; }
 .btn.peligro:hover { background: var(--rojo-osc); }
 .btn.chico { padding: 5px 10px; font-size: 13px; }
 
+/* Destructivo pero discreto, para el borrar que vive en cada fila de una
+   tabla: veinte botones rojos macizos gritan más que la propia acción, y a
+   fuerza de gritar dejan de leerse. Rojo sólo en el texto, y el peso visual
+   completo recién al pasar por encima, cuando el mouse ya está ahí.
+
+   Va después de .btn.peligro y con un selector más específico a propósito:
+   si no, `sec` deja el texto oscuro sobre el rojo y el contraste se cae. */
+.btn.sec.peligro {
+  background: var(--tarjeta); color: var(--rojo); border-color: var(--borde);
+}
+.btn.sec.peligro:hover {
+  background: var(--rojo); color: #fff; border-color: var(--rojo);
+}
+
 /* ------------------------------------------------------------ tarjeta */
 
 .tarjeta {

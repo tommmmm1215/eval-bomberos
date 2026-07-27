@@ -62,7 +62,7 @@ do $$ begin
   raise notice 'OK — el jefe abre el período y precarga las notas';
 end $$;
 
-select upsert_guardias_semana(:'p1', 1,
+select upsert_guardias_mes(:'p1',
   '[{"bombero_id":"bb000000-0000-0000-0000-00000000000b","horas":12}]'::jsonb);
 
 reset role;
@@ -72,8 +72,8 @@ set local role authenticated;
 do $$ begin
   -- Un bombero raso puede invocar la RPC, pero app_es_jefe() lo frena.
   begin
-    perform upsert_guardias_semana(
-      (select id from periodo limit 1), 2,
+    perform upsert_guardias_mes(
+      (select id from periodo limit 1),
       '[{"bombero_id":"bb000000-0000-0000-0000-00000000000b","horas":99}]'::jsonb);
     raise exception 'FALLO: un bombero raso cargó horas';
   exception when sqlstate '42501' then
@@ -131,8 +131,8 @@ begin
 
   -- Y tampoco puede escribir sobre el cuartel ajeno.
   begin
-    perform upsert_guardias_semana(
-      (select id from periodo p where true limit 1), 1, '[]'::jsonb);
+    perform upsert_guardias_mes(
+      (select id from periodo p where true limit 1), '[]'::jsonb);
     -- Si el select interno no devolvió nada, la RPC recibe null y falla igual.
   exception when others then null;
   end;

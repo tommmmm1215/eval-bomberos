@@ -67,6 +67,9 @@ PG16 y `pgserver.get_server('/tmp/pgdata')` levanta una instancia local.
 | `..._03_functions.sql` | RPC de carga rápida y ciclo de vida del período |
 | `..._04_rls.sql` | Políticas RLS |
 | `..._05_permisos.sql` | `search_path` fijo y revocación de `EXECUTE` a `anon` |
+| `..._06_dni_y_fotos.sql` | DNI y retratos en bucket privado |
+| `..._07_revocar_tablas_de_anon.sql` | Cierre de acceso directo a tablas |
+| `..._08_guardias_mensuales.sql` | Las horas se cargan por mes: se va la columna `semana` |
 
 ## Tests
 
@@ -80,7 +83,7 @@ PG16 y `pgserver.get_server('/tmp/pgdata')` levanta una instancia local.
 | RPC | Uso |
 |---|---|
 | `abrir_periodo(cuartel, anio, mes)` | Crea el mes y precarga las notas en 7 |
-| `upsert_guardias_semana(periodo, semana, registros)` | Carga semanal, idempotente |
+| `upsert_guardias_mes(periodo, registros)` | Carga mensual, idempotente |
 | `registrar_emergencia(periodo, ocurrida_en, tipo, presentes[], ...)` | Evento + asistencia completa |
 | `cerrar_periodo(periodo)` | Congela resultados y bloquea escrituras |
 | `reabrir_periodo(periodo, motivo)` | Reapertura auditable |
@@ -112,7 +115,7 @@ Consecuencias:
 - El aislamiento entre cuarteles también se conserva aunque hoy haya uno
   solo. Borrarlo sería trabajo y riesgo a cambio de nada.
 - **Lo que sí cambia es la prioridad de diseño del front**: todo el ahorro
-  de tiempo es el tiempo de una persona. La pantalla semanal tiene que
+  de tiempo es el tiempo de una persona. La pantalla de carga tiene que
   poder completarse con teclado, sin mouse, y la carga de una salida tiene
   que servir a las 3 AM desde el celular.
 

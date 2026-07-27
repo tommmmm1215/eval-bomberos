@@ -30,29 +30,31 @@ set local "request.jwt.claim.sub" = '99999999-9999-9999-9999-999999999999';
 
 select abrir_periodo('11111111-1111-1111-1111-111111111111', 2026, 7) as periodo \gset
 
--- ── Carga semanal de guardias ────────────────────────────────────────
-select upsert_guardias_semana(:'periodo', 1, '[
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000002","horas":6},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000003","horas":6},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000004","horas":1.25},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000005","horas":6}]'::jsonb);
-select upsert_guardias_semana(:'periodo', 2, '[
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000002","horas":6},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000003","horas":7},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000004","horas":1.25},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000005","horas":6}]'::jsonb);
-select upsert_guardias_semana(:'periodo', 3, '[
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000002","horas":6},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000003","horas":0},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000004","horas":1.25},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000005","horas":6}]'::jsonb);
--- reenvío correctivo de la semana 3: debe pisar, no duplicar
-select upsert_guardias_semana(:'periodo', 3, '[
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000003","horas":6}]'::jsonb);
-select upsert_guardias_semana(:'periodo', 4, '[
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000002","horas":6},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000004","horas":1.25},
-  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000005","horas":6}]'::jsonb);
+-- ── Carga mensual de guardias ────────────────────────────────────────
+-- Los totales son los mismos que cuando esto se cargaba semana por semana
+-- (24, 19, 5 y 24), así que las aserciones de puntaje de más abajo siguen
+-- valiendo. Lo que cambió es la forma de cargarlos, no el resultado.
+select upsert_guardias_mes(:'periodo', '[
+  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000002","horas":24},
+  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000003","horas":99},
+  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000004","horas":5},
+  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000005","horas":24}]'::jsonb);
+
+-- Reenvío correctivo: el 99 fue un dedazo. Tiene que pisarlo y quedar en 19,
+-- no sumarse y dar 118. Es el caso real de la fila que se vuelve a cargar.
+select upsert_guardias_mes(:'periodo', '[
+  {"bombero_id":"aaaaaaaa-0000-0000-0000-000000000003","horas":19}]'::jsonb);
+
+do $$
+begin
+  assert (select horas from registro_guardia
+          where bombero_id = 'aaaaaaaa-0000-0000-0000-000000000003') = 19,
+         'El reenvío tiene que pisar el valor, no acumularlo';
+  assert (select count(*) from registro_guardia
+          where bombero_id = 'aaaaaaaa-0000-0000-0000-000000000003') = 1,
+         'Una sola fila por bombero y mes';
+  raise notice 'OK — la carga mensual es idempotente';
+end $$;
 
 -- Sosa: licencia médica de 15 días (1 al 15 de julio)
 insert into novedad_personal (bombero_id, desde, hasta, tipo) values
@@ -182,9 +184,12 @@ begin
   select cerrar_periodo(p) into n;
   assert n = 4, 'Debía congelar 4 filas, congeló ' || n;
 
+  -- Un UPDATE y no un INSERT: con una fila por bombero y mes, insertar
+  -- chocaría contra el unique y el test pasaría por el motivo equivocado.
+  -- El trigger t_guard_registro_guardia cubre insert, update y delete.
   begin
-    insert into registro_guardia (periodo_id, bombero_id, semana, horas)
-    values (p, 'aaaaaaaa-0000-0000-0000-000000000002', 5, 3);
+    update registro_guardia set horas = 3
+    where periodo_id = p and bombero_id = 'aaaaaaaa-0000-0000-0000-000000000002';
     raise exception 'FALLO: aceptó carga en período cerrado';
   exception when sqlstate '55006' then
     raise notice 'OK — período cerrado rechaza escrituras';

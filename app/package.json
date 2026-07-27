@@ -1,7 +1,7 @@
 {
   "name": "evaluacion-bomberos-espartillar",
   "productName": "Evaluacion Bomberos Espartillar",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Sistema de evaluación de rendimiento — Bomberos Voluntarios de Espartillar",
   "main": "main.js",
   "author": "Cuerpo de Bomberos Voluntarios de Espartillar",
@@ -42,6 +42,14 @@
       "",
       "npm tampoco se queja: ignora los campos que no conoce."
     ],
+    "files": [
+      "Las dos exclusiones no son decorativas. Los .fuse_hidden* son copias",
+      "viejas que deja el sistema de archivos cuando se reemplaza un archivo",
+      "que estaba abierto; no los importa nadie, pero renderer/**/* los tomaba",
+      "y viajaban adentro del .exe. En la 1.0.3 se distribuyeron diez, con",
+      "código de versiones anteriores —incluida la pantalla de guardias por",
+      "semana que ya no existe— al cuartel."
+    ],
     "publish": [
       "De acá lee electron-updater a qué repositorio consultar. Tiene que ser",
       "un repo público, o hará falta un token. El archivo latest.yml que",
@@ -62,6 +70,20 @@
     "portable": [
       "El portable se conserva para probar sin instalar y para el caso de que",
       "la PC del cuartel no permita instalaciones. No se auto-actualiza."
+    ],
+    "icono": [
+      "build/icon.ico lleva siete tamaños (16 a 256). Los tres más chicos se",
+      "generaron desde build/icon-chico.svg y el resto desde build/icon.svg:",
+      "son el mismo casco, pero el chico tiene más aire entre el casco y la",
+      "visera, porque a 16 px ese hueco se cierra y queda un borrón rojo.",
+      "",
+      "Windows no elige el tamaño más grande y lo achica: toma el que más se",
+      "acerca al que necesita. Por eso conviene incluirlos todos en vez de",
+      "dejar sólo el de 256.",
+      "",
+      "renderer/icon.png es la copia que usa la ventana en tiempo de",
+      "ejecución. Está ahí y no en build/ porque electron-builder excluye la",
+      "carpeta de recursos de compilación del paquete final."
     ]
   },
   "build": {
@@ -71,7 +93,9 @@
     "files": [
       "main.js",
       "preload.js",
-      "renderer/**/*"
+      "renderer/**/*",
+      "!**/.fuse_hidden*",
+      "!**/*.map"
     ],
     "publish": [
       {
@@ -86,7 +110,8 @@
         { "target": "nsis", "arch": ["x64"] },
         { "target": "portable", "arch": ["x64"] }
       ],
-      "artifactName": "EvaluacionBomberos-Setup-${version}.${ext}"
+      "artifactName": "EvaluacionBomberos-Setup-${version}.${ext}",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,

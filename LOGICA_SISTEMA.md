@@ -16,19 +16,19 @@ sistema las separa:
 
 | Naturaleza | Qué se carga | Frecuencia | Quién |
 |---|---|---|---|
-| **Hecho medible** | Horas de guardia, presentes en cada salida | Semanal / al ocurrir | Guardia entrante, oficial de turno |
+| **Hecho medible** | Horas de guardia, presentes en cada salida | Mensual / al ocurrir | Guardia entrante, oficial de turno |
 | **Juicio evaluativo** | Nota 1–10 por categoría | Mensual, al cierre | Jefe / subjefe |
 | **Derivado** | Todos los porcentajes y el puntaje final | Automático, en vivo | Nadie |
 
 Consecuencia de diseño: **ningún porcentaje se almacena mientras el período está
 abierto**. Se calculan en vistas SQL sobre el dato crudo. Si se corrige una hora
-mal cargada en la semana 2, el puntaje del mes se actualiza solo. No hay
+mal cargada, el puntaje del mes se actualiza solo. No hay
 recálculos manuales, no hay dos números en desacuerdo.
 
 **Ciclo de vida del mes**
 
 ```
-abrir_periodo()  →  carga semanal (×4/5)  →  notas del jefe  →  cerrar_periodo()
+abrir_periodo()  →  carga de horas del mes  →  notas del jefe  →  cerrar_periodo()
    config              horas + salidas         solo desvíos       congela foto
    congelada           en vivo                                    bloquea escritura
 ```
@@ -39,16 +39,16 @@ abrir_periodo()  →  carga semanal (×4/5)  →  notas del jefe  →  cerrar_pe
 
 ### 1.1 Horas de guardia
 
-**Carga.** Una sola pantalla por semana: lista de bomberos activos, un campo
-numérico por fila, un botón. La operación es **idempotente**: reenviar la semana
-3 corrige la semana 3, no la duplica. Esto importa porque el error real de
+**Carga.** Una sola pantalla por mes: lista de bomberos activos, un campo
+numérico por fila, un botón. La operación es **idempotente**: reenviar el mes
+corrige el valor, no lo acumula. Esto importa porque el error real de
 operación no es cargar mal, es cargar dos veces.
 
 **Cálculo.**
 
 ```
 meta_ajustada  = meta_horas_mes × (días_disponibles / días_del_mes)
-horas_mes      = Σ horas de las semanas 1..n del período
+horas_mes      = horas cargadas para el bombero en el período
 % guardia      = MIN(horas_mes / meta_ajustada , 1) × 100
 excedente      = MAX(horas_mes − meta_ajustada , 0)
 ```
@@ -110,7 +110,7 @@ redistribuye (§3.2). Un cuartel sin salidas ese mes no hunde a nadie.
 Seis categorías cargadas por el jefe. **Todas nacen precargadas en 7** al abrir
 el período (`inicializar_evaluaciones`). El jefe no evalúa a 30 personas en 6
 dimensiones: **edita únicamente los desvíos**. Gestión por excepción — es el
-segundo gran ahorro de tiempo después de la carga semanal.
+segundo gran ahorro de tiempo después de la carga mensual.
 
 ### Ancla de la escala
 
@@ -293,7 +293,7 @@ cuartel
                             se inserta una versión nueva. Los períodos
                             anteriores conservan la suya.
   └── periodo (año, mes, config_id, estado)
-        ├── registro_guardia        (bombero, semana, horas)      ← CARGA SEMANAL
+        ├── registro_guardia        (bombero, horas)              ← CARGA MENSUAL
         ├── emergencia              (tipo, peso, computable)      ← CARGA POR EVENTO
         │     └── emergencia_asistencia (bombero, estado)
         ├── evaluacion_mensual      (6 notas 1–10, no_aplica[])   ← CARGA MENSUAL
@@ -308,19 +308,18 @@ bombero
 
 | Tabla | Clave | Efecto |
 |---|---|---|
-| `registro_guardia` | `(periodo, bombero, semana)` | Carga semanal idempotente |
+| `registro_guardia` | `(periodo, bombero)` | Carga mensual idempotente |
 | `evaluacion_mensual` | `(periodo, bombero)` | Una evaluación por mes |
 | `emergencia_asistencia` | `(emergencia, bombero)` | Sin doble presencia |
 | `periodo` | `(cuartel, año, mes)` | Sin meses duplicados |
 
 ### 4.2 Contratos JSON del front
 
-**Carga semanal de guardias** — `upsert_guardias_semana`
+**Carga mensual de guardias** — `upsert_guardias_mes`
 
 ```json
 {
   "p_periodo": "9f1c…",
-  "p_semana": 3,
   "p_registros": [
     { "bombero_id": "a1…", "horas": 12 },
     { "bombero_id": "b2…", "horas": 24 },
@@ -391,7 +390,7 @@ reclamo, se abre y se ve exactamente qué categoría restó y cuánto.
 
 ### 4.3 Notas de implementación para el front
 
-- **Pantalla semanal**: tabla editable, guardado por lote, un solo POST. Sin
+- **Pantalla mensual**: tabla editable, guardado por lote, un solo POST. Sin
   guardado por fila.
 - **Pantalla de salida**: buscador de bombero + chips de presentes. Optimizada
   para cargarse desde el celular a las 3 AM.
@@ -462,7 +461,7 @@ especificación y el código dicen lo mismo.
 | 0004 Díaz | 5,00 | 24,00 | 20,83 | 100,00 | 80,21 | 60,00 | requiere_mejora |
 | 0005 Sosa | 24,00 | 12,39 | 100,00 | 0,00 | 60,00 | 60,00 | requiere_mejora |
 
-Casos que el test cubre y quedaron validados: upsert correctivo de una semana
+Casos que el test cubre y quedaron validados: upsert correctivo de la carga
 (Gómez carga 19 h, no 25), novedades solapadas que no se descuentan dos veces
 (Sosa, 15 días y no 20), meta prorrateada, `no_aplica` que renormaliza el divisor
 a 92, personal no evaluable fuera del ranking, tope por piso operativo en sus dos
