@@ -408,7 +408,7 @@ Todos viven en `config_evaluacion` y ninguno está en código.
 
 | Parámetro | Valor propuesto | Pregunta a hacerle al jefe de cuartel |
 |---|---|---|
-| `meta_horas_mes` | 24 | ¿Cuántas horas de guardia se le exigen a un bombero por mes? ¿Varía por rango? |
+| `meta_horas_mes` | 12 | Definido con el jefe de cuartel: 12 h por mes. Queda pendiente si varía por rango. |
 | `pesos` | Ver §3.2 | ¿Qué pesa más: estar presente o cómo se comporta cuando está? |
 | `piso_guardia` | 50 % | ¿Debajo de qué cumplimiento el mes ya no es aceptable? |
 | `piso_salidas` | 40 % | Ídem para salidas |

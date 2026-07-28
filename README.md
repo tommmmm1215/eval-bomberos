@@ -27,8 +27,8 @@ desde GitHub Releases publicando con `npm run publicar`.
 **Estado:** migraciones y ambas suites de test ejecutadas y verdes sobre
 PostgreSQL 16.2 (cálculo y RLS). Desplegado en Supabase, entorno de staging:
 proyecto `bomberos-espartillar-staging` (`azyinwfguzohifjfiazw`, región
-sa-east-1, PG17). **Sin datos reales de personal todavía** — falta calibrar
-`pesos` y `meta_horas_mes` con el jefe de cuartel.
+sa-east-1, PG17). `meta_horas_mes` calibrada con el jefe de cuartel en **12 h
+por mes**. Los `pesos` de las seis categorías siguen siendo los provisorios.
 
 ## Aplicar
 

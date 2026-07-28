@@ -39,7 +39,7 @@ insert into config_evaluacion
   (cuartel_id, vigente_desde, meta_horas_mes, pesos, tope_por_piso,
    piso_guardia, piso_salidas)
 values
-  ('00000000-0000-0000-0000-0000000000e1', '2026-01-01', 24,
+  ('00000000-0000-0000-0000-0000000000e1', '2026-01-01', 12,
    '{"guardia":25,"salidas":25,"orden_interno":10,"capacitacion":10,
      "protocolar":5,"cursos":8,"cambio_guardia":7,"conducta":10}'::jsonb,
    60, 0.50, 0.40)
