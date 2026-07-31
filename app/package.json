@@ -1,7 +1,7 @@
 {
   "name": "evaluacion-bomberos-espartillar",
   "productName": "Evaluacion Bomberos Espartillar",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Sistema de evaluación de rendimiento — Bomberos Voluntarios de Espartillar",
   "main": "main.js",
   "author": "Cuerpo de Bomberos Voluntarios de Espartillar",

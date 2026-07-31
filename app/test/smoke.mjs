@@ -265,6 +265,14 @@ afirmar(texto(doc).includes("Bomberos Voluntarios de Espartillar"), "muestra el 
 afirmar(errores.length === 0, "sin errores al arrancar" + (errores[0] ? ` — ${errores[0]}` : ""));
 sinBasura(doc, "shell");
 
+// Un clic sobre un <label> que envuelve un checkbox: el navegador reenvía el
+// clic al input, y el código de la app lo neutraliza con preventDefault(). Sin
+// `cancelable: true` ese preventDefault no hace nada, el reenvío ocurre igual y
+// la casilla se destilda y se vuelve a tildar en el mismo clic — o sea, nada.
+function clic(nodo) {
+  nodo.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
+}
+
 async function irA(nombre) {
   const btn = [...doc.querySelectorAll(".nav button")].find(b => b.textContent === nombre);
   if (!btn) { mal(`existe la solapa ${nombre}`); return false; }
@@ -469,10 +477,21 @@ if (await irA("Resultados")) {
   const dlg = doc.querySelector("dialog[open]");
   afirmar(dlg, "abre el selector de meses");
 
-  const casillas = [...dlg.querySelectorAll("input[type=checkbox]")];
-  afirmar(casillas.length === DATOS.periodo.length, "ofrece todos los meses que existen");
+  const meses = [...dlg.querySelectorAll(".lista-meses input[type=checkbox]")];
+  afirmar(meses.length === DATOS.periodo.length, "ofrece todos los meses que existen");
   // Se piden los últimos seis por defecto; con dos meses cargados, los dos.
-  afirmar(casillas.every(c => c.checked), "vienen tildados por defecto");
+  afirmar(meses.every(c => c.checked), "vienen tildados por defecto");
+
+  // Qué imprimir: general e individuales, las dos marcadas de arranque.
+  const que = [...dlg.querySelectorAll(".lista-que input[type=checkbox]")];
+  afirmar(que.length === 2, "deja elegir entre resumen general y hojas individuales");
+  afirmar(que.every(c => c.checked), "las dos vienen marcadas");
+
+  // Y de quiénes: una casilla por evaluable, todas marcadas.
+  const quienes = [...dlg.querySelectorAll(".lista-personas input[type=checkbox]")];
+  afirmar(quienes.length === EVALUABLES.length,
+    `deja elegir a quiénes (${quienes.length} de ${EVALUABLES.length})`);
+  afirmar(quienes.every(c => c.checked), "todas las personas vienen marcadas");
 
   // Nada se imprime hasta confirmar.
   afirmar(!doc.getElementById("informe"), "no genera nada hasta que se confirma");
@@ -498,6 +517,43 @@ if (await irA("Resultados")) {
   afirmar(t.includes("ROMERO") === false, "el jefe no lleva hoja: no se evalúa");
 
   if (inf) sinBasura2(inf, "Informe");
+
+  // --- Sólo el resumen general -----------------------------------------
+  inf.remove();
+  [...doc.querySelectorAll("main button")].find(b => b.textContent === "Imprimir informe")
+    .dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  for (let i = 0; i < 40; i++) await new Promise(r => setTimeout(r, 5));
+  let d2 = doc.querySelector("dialog[open]");
+  // Se destilda "Hojas individuales".
+  clic([...d2.querySelectorAll(".lista-que label")][1]);
+  for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 5));
+  afirmar(d2.querySelector(".lista-personas").parentElement.style.display === "none",
+    "al sacar las hojas individuales se esconde la lista de personas");
+  [...d2.querySelectorAll("footer button")].at(-1)
+    .dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  for (let i = 0; i < 120; i++) await new Promise(r => setTimeout(r, 5));
+  const soloGeneral = doc.getElementById("informe");
+  afirmar(soloGeneral && soloGeneral.querySelectorAll(".hoja-informe").length === 1,
+    "sólo el resumen imprime una sola hoja");
+
+  // --- Sólo una persona -------------------------------------------------
+  soloGeneral.remove();
+  [...doc.querySelectorAll("main button")].find(b => b.textContent === "Imprimir informe")
+    .dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  for (let i = 0; i < 40; i++) await new Promise(r => setTimeout(r, 5));
+  let d3 = doc.querySelector("dialog[open]");
+  // Fuera el resumen, y de las personas se deja una sola.
+  clic([...d3.querySelectorAll(".lista-que label")][0]);
+  [...d3.querySelectorAll(".lista-personas label")].slice(1).forEach(clic);
+  for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 5));
+  [...d3.querySelectorAll("footer button")].at(-1)
+    .dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  for (let i = 0; i < 120; i++) await new Promise(r => setTimeout(r, 5));
+  const unaSola = doc.getElementById("informe");
+  afirmar(unaSola && unaSola.querySelectorAll(".hoja-informe").length === 1,
+    "una sola persona imprime una sola hoja");
+  afirmar(unaSola && !/Resumen general/.test(unaSola.textContent),
+    "y sin el resumen general");
 }
 
 console.log(`\n${pruebas - fallos}/${pruebas} pruebas pasaron\n`);

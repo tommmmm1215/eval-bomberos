@@ -28,18 +28,110 @@ export async function abrirInforme({ periodos, gente, cuartel }) {
   // últimos, que es lo que se pidió, pero cada uno se puede destildar.
   const elegidos = new Set(periodos.slice(0, CUANTOS_POR_DEFECTO).map(p => p.id));
 
+  // Las tres listas llevan clase propia: hay tres grupos de casillas en el
+  // mismo diálogo y contarlas todas juntas no distingue nada.
   const lista = el("div", {
+    class: "lista-meses",
     style: "display:grid;grid-template-columns:1fr 1fr;gap:4px;max-height:230px;overflow:auto"
   });
 
+  // Sólo se informa a quien se evalúa: el resto no tiene puntaje que mostrar.
+  const evaluables = gente.filter(b => b.evaluable);
+  const personas = new Set(evaluables.map(b => b.id));
+
+  const opciones = { general: true, individuales: true };
+
   const resumen = el("div", { class: "nota info", style: "margin-top:12px" });
+  const listaGente = el("div", {
+    class: "lista-personas",
+    style: "display:grid;grid-template-columns:1fr 1fr;gap:4px;max-height:170px;overflow:auto"
+  });
+  const bloqueGente = el("div", { style: "margin-top:14px" });
 
   function actualizarResumen() {
-    resumen.textContent = elegidos.size
-      ? `${elegidos.size} mes(es) · ${gente.length} personas · ` +
-        `${1 + gente.length} hojas aproximadamente`
-      : "Elegí al menos un mes.";
+    if (!elegidos.size) {
+      resumen.className = "nota warn";
+      resumen.textContent = "Elegí al menos un mes.";
+      return;
+    }
+    if (!opciones.general && !opciones.individuales) {
+      resumen.className = "nota warn";
+      resumen.textContent = "Elegí al menos una cosa para imprimir.";
+      return;
+    }
+    if (opciones.individuales && !personas.size) {
+      resumen.className = "nota warn";
+      resumen.textContent = "Elegí al menos una persona, o desmarcá las hojas individuales.";
+      return;
+    }
+    const hojas = (opciones.general ? 1 : 0) +
+                  (opciones.individuales ? personas.size : 0);
+    resumen.className = "nota info";
+    resumen.textContent =
+      `${elegidos.size} mes(es) · ${hojas} hoja(s)` +
+      (opciones.individuales && personas.size < evaluables.length
+        ? ` · ${personas.size} de ${evaluables.length} personas`
+        : "");
   }
+
+  // Una casilla genérica, para no repetir el mismo bloque cuatro veces.
+  function casilla({ marcada, texto, extra = null, alCambiar }) {
+    const chk = el("input", { type: "checkbox", checked: marcada,
+                              style: "width:auto;margin-right:8px" });
+    const lbl = el("label", {
+      style: "display:flex;align-items:center;padding:6px 8px;border:1px solid var(--borde);" +
+             "border-radius:6px;cursor:pointer;font-size:14px",
+      onclick: ev => {
+        if (ev.target !== chk) { ev.preventDefault(); chk.checked = !chk.checked; }
+        alCambiar(chk.checked);
+        lbl.style.background = chk.checked ? "#ecfdf3" : "";
+        actualizarResumen();
+      }
+    }, chk, texto, extra);
+    if (marcada) lbl.style.background = "#ecfdf3";
+    return lbl;
+  }
+
+  for (const b of evaluables) {
+    listaGente.append(casilla({
+      marcada: true,
+      texto: b.nombre,
+      extra: el("span", { class: "legajo", style: "margin-left:auto", text: b.legajo }),
+      alCambiar: v => v ? personas.add(b.id) : personas.delete(b.id)
+    }));
+  }
+
+  const btnTodos = el("button", {
+    class: "btn sec chico", type: "button", text: "Todos / ninguno",
+    onclick: () => {
+      const marcarTodos = personas.size < evaluables.length;
+      limpiar(listaGente);
+      personas.clear();
+      if (marcarTodos) evaluables.forEach(b => personas.add(b.id));
+      for (const b of evaluables) {
+        listaGente.append(casilla({
+          marcada: marcarTodos,
+          texto: b.nombre,
+          extra: el("span", { class: "legajo", style: "margin-left:auto", text: b.legajo }),
+          alCambiar: v => v ? personas.add(b.id) : personas.delete(b.id)
+        }));
+      }
+      actualizarResumen();
+    }
+  });
+
+  // El bloque de personas sólo tiene sentido si se van a imprimir hojas
+  // individuales. Se oculta en vez de deshabilitarse: una lista de dieciocho
+  // casillas grises pidiendo ser leídas para nada es peor que no estar.
+  function refrescarBloqueGente() {
+    bloqueGente.style.display = opciones.individuales ? "" : "none";
+  }
+
+  montar(bloqueGente,
+    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:6px" },
+      el("div", { style: "font-size:13px;font-weight:600", text: "De quiénes" }),
+      btnTodos),
+    listaGente);
 
   for (const p of periodos) {
     const chk = el("input", {
@@ -63,24 +155,56 @@ export async function abrirInforme({ periodos, gente, cuartel }) {
   }
   actualizarResumen();
 
+  const queImprimir = el("div", { class: "lista-que",
+                                  style: "display:grid;gap:4px;margin-bottom:14px" },
+    casilla({
+      marcada: true,
+      texto: "Resumen general",
+      extra: el("small", { style: "margin-left:auto;color:var(--suave)",
+                           text: "una tabla con todos" }),
+      alCambiar: v => { opciones.general = v; }
+    }),
+    casilla({
+      marcada: true,
+      texto: "Hojas individuales",
+      extra: el("small", { style: "margin-left:auto;color:var(--suave)",
+                           text: "una por persona" }),
+      alCambiar: v => { opciones.individuales = v; refrescarBloqueGente(); }
+    })
+  );
+
+  refrescarBloqueGente();
+  actualizarResumen();
+
   await dialogo({
     titulo: "Imprimir informe",
     confirmar: "Generar",
     cuerpo: el("div", {},
-      el("p", { class: "nota info", text:
-        "Un resumen general con una columna por mes, y después una hoja por " +
-        "persona con sus notas, horas y presentismo." }),
+      el("div", { style: "font-size:13px;font-weight:600;margin-bottom:6px",
+                  text: "Qué imprimir" }),
+      queImprimir,
+
       el("div", { style: "font-size:13px;font-weight:600;margin-bottom:6px",
                   text: "Meses a incluir" }),
       lista,
+
+      bloqueGente,
       resumen
     ),
     alConfirmar: async () => {
       if (!elegidos.size) return false;
+      if (!opciones.general && !opciones.individuales) return false;
+      if (opciones.individuales && !personas.size) return false;
+
       const sel = periodos.filter(p => elegidos.has(p.id))
                           .sort((a, b) => (a.anio - b.anio) || (a.mes - b.mes));
       try {
-        await generar(sel, gente, cuartel);
+        await generar(sel, gente, cuartel, {
+          general: opciones.general,
+          // Se pasa la lista de ids en vez del booleano: `generar` no tiene
+          // por qué volver a decidir a quién incluir.
+          individuales: opciones.individuales ? personas : null
+        });
       } catch (e) { errorDe(e); return false; }
       return true;
     }
@@ -89,7 +213,7 @@ export async function abrirInforme({ periodos, gente, cuartel }) {
 
 // --------------------------------------------------------------- generación
 
-async function generar(periodos, gente, cuartel) {
+async function generar(periodos, gente, cuartel, opciones) {
   const ids = periodos.map(p => p.id);
 
   const [puntajes, evals, detalles, penas] = await Promise.all([
@@ -112,7 +236,14 @@ async function generar(periodos, gente, cuartel) {
   }
 
   // Sólo se informa a quien se evalúa: el resto no tiene puntaje que mostrar.
+  //
+  // El resumen general siempre lista a TODOS los evaluables aunque se hayan
+  // elegido pocas hojas individuales: una tabla comparativa a la que le
+  // faltan filas no es un resumen, es una selección disfrazada de resumen.
   const evaluables = gente.filter(b => b.evaluable);
+  const conHoja = opciones.individuales
+    ? evaluables.filter(b => opciones.individuales.has(b.id))
+    : [];
 
   const titulo = periodos.length === 1
     ? `${nombreMes(periodos[0].mes)} ${periodos[0].anio}`
@@ -133,7 +264,7 @@ async function generar(periodos, gente, cuartel) {
 
   const ordenados = [...evaluables].sort((a, b) => (promedioDe(b) ?? -1) - (promedioDe(a) ?? -1));
 
-  montar(raiz,
+  if (opciones.general) montar(raiz,
     el("section", { class: "hoja-informe" },
       encabezado(cuartel, "Resumen general", titulo),
       el("table", { class: "tabla-informe" },
@@ -175,7 +306,7 @@ async function generar(periodos, gente, cuartel) {
 
   // ------------------------------------------------- una hoja por bombero
 
-  for (const b of ordenados) {
+  for (const b of ordenados.filter(x => conHoja.some(c => c.id === x.id))) {
     montar(raiz,
       el("section", { class: "hoja-informe" },
         encabezado(cuartel, b.nombre,
