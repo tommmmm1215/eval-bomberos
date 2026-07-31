@@ -48,10 +48,43 @@ if not defined GITMAIL (
   echo(
 )
 
-REM El .git anterior puede haber quedado a medias: se rehace limpio.
+REM --- Freno de mano -------------------------------------------------
+REM
+REM Este script era un bootstrap de una sola vez y borraba .git para
+REM arrancar limpio. El problema es que se llama "SUBIR-A-GITHUB" y quedo
+REM en la raiz: cualquiera lo ejecuta pensando que sube los cambios, y le
+REM borra el historial y el remote. Paso.
+REM
+REM Ahora, si ya hay repositorio, no lo toca: guarda los cambios y sube.
+
 if exist ".git" (
-  echo Quitando el repositorio anterior...
-  rmdir /s /q ".git"
+  echo Ya existe un repositorio. No se toca el historial.
+  echo(
+  echo Guardando los cambios pendientes...
+  git add -A
+  git diff --cached --quiet
+  if errorlevel 1 (
+    set /p "MSJ=  Mensaje del commit: "
+    if not defined MSJ set "MSJ=Cambios"
+    git commit -q -m "!MSJ!"
+    echo   Commit hecho.
+  ) else (
+    echo   No habia nada nuevo que guardar.
+  )
+  echo(
+  git remote get-url origin >nul 2>nul
+  if errorlevel 1 (
+    echo No hay un remote configurado. Agregalo con:
+    echo(
+    echo   git remote add origin https://github.com/tommmmm1215/eval-bomberos.git
+    echo   git push -u origin main
+  ) else (
+    echo Subiendo...
+    git push
+  )
+  echo(
+  pause
+  exit /b 0
 )
 
 echo [1/3] Inicializando...
