@@ -1,0 +1,42 @@
+# =====================================================================
+#  Finales de línea
+#
+#  Sin este archivo, git normaliza a LF al guardar y devuelve lo que le
+#  parezca al clonar, según la configuración de cada máquina. Para los
+#  .bat eso no es un detalle de estilo: cmd.exe con LF solos parte mal
+#  las líneas y se come caracteres, así que un doble clic en una máquina
+#  recién clonada ejecutaría cualquier cosa menos lo que dice el archivo.
+#
+#  Los propios .bat lo advierten en su encabezado. Esto lo garantiza en
+#  vez de confiar en que quien los edite se acuerde.
+#
+#  Síntoma de que faltaba: los cinco .bat aparecían como modificados en
+#  `git status` recién commiteados, con las 456 líneas cambiadas. Era
+#  sólo el CR.
+# =====================================================================
+
+* text=auto
+
+# La interfaz de operación del proyecto: se ejecutan con doble clic.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Todo lo demás se lee en editores y en GitHub, donde LF es lo natural.
+*.sql  text eol=lf
+*.md   text eol=lf
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.yml  text eol=lf
+
+# Binarios: que git no intente normalizar nada acá adentro.
+*.ico  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.exe  binary
+*.7z   binary
+*.zip  binary
